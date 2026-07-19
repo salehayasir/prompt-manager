@@ -1,0 +1,6 @@
+server:
+  port: 8001
+
+prompt:
+  service:
+    url: http://localhost:8000
