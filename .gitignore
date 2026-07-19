@@ -73,3 +73,5 @@ target/
 
 # Logs
 *.log
+
+review-service/reviews/
