@@ -7,7 +7,7 @@ function ReviewList({ refresh }) {
 
     useEffect(() => {
 
-        reviewApi.get("/reviews")
+        reviewApi.get("")
             .then((response) => {
                 setReviews(response.data);
             })

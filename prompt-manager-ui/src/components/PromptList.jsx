@@ -7,7 +7,7 @@ function PromptList({ refresh, selectedPrompt, onSelectPrompt }) {
 
     useEffect(() => {
 
-        promptApi.get("/prompts")
+        promptApi.get("")
             .then((response) => {
                 setPrompts(response.data);
             })
