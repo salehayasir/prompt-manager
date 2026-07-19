@@ -24,7 +24,7 @@ function CreatePrompt({ onPromptCreated, onError }) {
 
         event.preventDefault();
 
-        promptApi.post("/prompts", formData)
+        promptApi.post("", formData)
             .then(() => {
 
                 setFormData({

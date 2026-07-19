@@ -1,9 +1,9 @@
 import axios from "axios";
 
 export const promptApi = axios.create({
-    baseURL: "http://localhost:8000"
+    baseURL: "/api/prompts"
 });
 
 export const reviewApi = axios.create({
-    baseURL: "http://localhost:8001"
+    baseURL: "/api/reviews"
 });

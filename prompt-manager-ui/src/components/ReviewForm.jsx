@@ -35,7 +35,7 @@ function ReviewForm({ selectedPrompt, onReviewCreated, onError }) {
 
         event.preventDefault();
 
-        reviewApi.post("/reviews", {
+        reviewApi.post("", {
 
             promptId: selectedPrompt.id,
             reviewerName: review.reviewerName,
