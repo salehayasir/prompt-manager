@@ -14,9 +14,18 @@ public class CorsConfig {
 
         CorsConfiguration config = new CorsConfiguration();
 
+        // Local development
+        config.addAllowedOrigin("http://localhost");
         config.addAllowedOrigin("http://localhost:5173");
+
+        // Allow any ngrok subdomain
+        config.addAllowedOriginPattern("https://*.ngrok-free.dev");
+
         config.addAllowedHeader("*");
         config.addAllowedMethod("*");
+
+        // Only needed if you use cookies or authentication
+        config.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source =
                 new UrlBasedCorsConfigurationSource();
