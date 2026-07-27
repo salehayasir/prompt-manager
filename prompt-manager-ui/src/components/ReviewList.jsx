@@ -40,7 +40,11 @@ function ReviewList({ refresh }) {
 
                             <div className="review-item-head">
                                 <span className="review-item-title">
-                                    {review.promptSnapshot.name}
+                                    {review.promptSnapshot
+                                        ? review.promptSnapshot.length > 60
+                                            ? `${review.promptSnapshot.slice(0, 60)}...`
+                                            : review.promptSnapshot
+                                        : "Prompt unavailable"}
                                 </span>
                                 <div className="score-meter" style={{ maxWidth: 90 }} aria-hidden="true">
                                     {[1, 2, 3, 4, 5].map((segment) => (

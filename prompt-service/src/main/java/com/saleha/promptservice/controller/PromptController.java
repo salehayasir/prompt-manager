@@ -61,7 +61,11 @@ public class PromptController {
     ) {
 
     Prompt existingPrompt = promptRepository.findById(id)
-            .orElseThrow();
+            .orElseThrow(
+                () -> new ResourceNotFoundException(
+                    "Prompt not found with id: " + id
+                )
+            );
 
 
     if (updatedPrompt.getName() != null) {
