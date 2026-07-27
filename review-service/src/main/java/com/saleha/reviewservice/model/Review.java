@@ -14,7 +14,8 @@ public class Review {
 
     private UUID promptId;
 
-    private Prompt promptSnapshot;
+    // Snapshot of the prompt's text content at the time the review was created
+    private String promptSnapshot;
 
     private String reviewerName;
 

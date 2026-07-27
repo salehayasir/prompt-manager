@@ -37,12 +37,16 @@ public class ReviewController {
 
 
 
-    // Get all reviews
+    // Get all reviews, optionally filtered by promptId, reviewerName, minScore, maxScore
     @GetMapping
-    public List<Review> getAllReviews()
-            throws IOException {
+    public List<Review> getAllReviews(
+            @RequestParam(required = false) UUID promptId,
+            @RequestParam(required = false) String reviewerName,
+            @RequestParam(required = false) Integer minScore,
+            @RequestParam(required = false) Integer maxScore
+    ) throws IOException {
 
-        return reviewService.getAllReviews();
+        return reviewService.getAllReviews(promptId, reviewerName, minScore, maxScore);
     }
 
 
@@ -54,6 +58,17 @@ public class ReviewController {
     ) throws IOException {
 
         return reviewService.getReviewById(id);
+    }
+
+
+
+    // Get all reviews for a specific prompt
+    @GetMapping("/prompt/{promptId}")
+    public List<Review> getReviewsByPromptId(
+            @PathVariable UUID promptId
+    ) throws IOException {
+
+        return reviewService.getReviewsByPromptId(promptId);
     }
 
 

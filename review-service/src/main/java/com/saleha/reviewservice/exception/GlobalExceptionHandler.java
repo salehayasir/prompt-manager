@@ -1,4 +1,4 @@
-package com.saleha.promptservice.exception;
+package com.saleha.reviewservice.exception;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -30,13 +30,31 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(body);
     }
 
-    // 404 - resource does not exist
-    @ExceptionHandler(ResourceNotFoundException.class)
-    public ResponseEntity<Map<String, Object>> handleNotFound(
-            ResourceNotFoundException exception
+    // 404 - review does not exist
+    @ExceptionHandler(ReviewNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleReviewNotFound(
+            ReviewNotFoundException exception
     ) {
 
         return buildResponse(HttpStatus.NOT_FOUND, exception.getMessage());
+    }
+
+    // 404 - referenced prompt does not exist
+    @ExceptionHandler(PromptNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handlePromptNotFound(
+            PromptNotFoundException exception
+    ) {
+
+        return buildResponse(HttpStatus.NOT_FOUND, exception.getMessage());
+    }
+
+    // 503 - prompt service could not be reached / errored out
+    @ExceptionHandler(PromptServiceUnavailableException.class)
+    public ResponseEntity<Map<String, Object>> handlePromptServiceUnavailable(
+            PromptServiceUnavailableException exception
+    ) {
+
+        return buildResponse(HttpStatus.SERVICE_UNAVAILABLE, exception.getMessage());
     }
 
     // 400 - request body failed bean validation (@Valid)

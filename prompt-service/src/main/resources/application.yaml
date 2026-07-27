@@ -1,11 +1,11 @@
 server:
-  port: 8000
+  port: ${SERVER_PORT:8000}
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/promptdb
-    username: postgres
-    password: saleha123
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/promptdb}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD}
 
   jpa:
     hibernate:
