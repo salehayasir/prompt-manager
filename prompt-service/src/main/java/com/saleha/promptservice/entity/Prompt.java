@@ -26,6 +26,10 @@ public class Prompt {
 
     private String modelTarget;
 
+    private String attachmentUrl;
+
+    private String attachmentPublicId;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
