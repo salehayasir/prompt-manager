@@ -99,7 +99,7 @@ Creating a review looks up the prompt in prompt-service and stores only its text
 - Nginx
 
 ### 1. Configure environment variables
-Both services read sensitive/environment-specific config from a `.env` file in their own directory (auto-loaded via `spring-dotenv`, so no manual `export` needed). Copy the provided templates and adjust as needed:
+Both services read sensitive/environment-specific config from a `.env` file in their own directory (auto-loaded at startup by a small built-in `DotenvLoader`, so no manual `export` needed). Copy the provided templates and adjust as needed:
 
 ```bash
 cp prompt-service/.env.example prompt-service/.env
