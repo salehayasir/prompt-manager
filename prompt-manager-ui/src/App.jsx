@@ -6,6 +6,7 @@ import ReviewForm from "./components/ReviewForm";
 import ReviewList from "./components/ReviewList";
 import ReviewSummary from "./components/ReviewSummary";
 import Toast from "./components/Toast";
+<<<<<<< Updated upstream
 import { getToken } from "./api/authToken";
 import Login from "./components/Login";
 
@@ -17,6 +18,19 @@ function App() {
         return <Login onLogin={() => setIsAuthenticated(true)} />;
     }
 
+=======
+import Login from "./components/Login";
+import { clearToken, getToken, onLogout } from "./api/authToken";
+
+function App() {
+
+    // All hooks live at the top level, unconditionally, on every render.
+    // (Previously an early "if not authenticated, return <Login />" sat
+    // above these, which meant React saw a different number of hooks
+    // depending on auth state — a Rules-of-Hooks violation that crashed
+    // the whole tree with a blank screen the moment login succeeded.)
+    const [isAuthenticated, setIsAuthenticated] = useState(!!getToken());
+>>>>>>> Stashed changes
     const [promptRefresh, setPromptRefresh] = useState(false);
     const [reviewRefresh, setReviewRefresh] = useState(false);
     const [selectedPrompt, setSelectedPrompt] = useState(null);
@@ -31,6 +45,13 @@ function App() {
 
     }, [toast]);
 
+    // If any API call gets a 401 (expired/invalid token), authToken.js
+    // dispatches a logout event. Listen for it so the UI actually drops
+    // back to the login screen instead of silently sitting there broken.
+    useEffect(() => {
+        return onLogout(() => setIsAuthenticated(false));
+    }, []);
+
     function notify(message, type = "success") {
         setToast({ message, type });
     }
@@ -43,6 +64,16 @@ function App() {
     function handleReviewCreated() {
         setReviewRefresh(!reviewRefresh);
         notify("Review submitted.");
+    }
+
+    function handleLogout() {
+        clearToken({ silent: true });
+        setIsAuthenticated(false);
+        setSelectedPrompt(null);
+    }
+
+    if (!isAuthenticated) {
+        return <Login onLogin={() => setIsAuthenticated(true)} />;
     }
 
     return (
@@ -62,10 +93,22 @@ function App() {
 
                 </div>
 
-                <p className="tagline">
-                    Draft prompts, catalogue them by target model, and collect
-                    structured peer feedback before anything ships.
-                </p>
+                <div className="header-actions">
+
+                    <p className="tagline">
+                        Draft prompts, catalogue them by target model, and collect
+                        structured peer feedback before anything ships.
+                    </p>
+
+                    <button
+                        type="button"
+                        className="btn-secondary btn-small logout-btn"
+                        onClick={handleLogout}
+                    >
+                        Log out
+                    </button>
+
+                </div>
 
             </header>
 
