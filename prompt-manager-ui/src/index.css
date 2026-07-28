@@ -141,6 +141,17 @@ button, input, textarea, select {
   line-height: 1.5;
 }
 
+.header-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.logout-btn {
+  flex-shrink: 0;
+}
+
 /* ---------------------------------------------------------
    Layout
    --------------------------------------------------------- */
@@ -247,6 +258,7 @@ button, input, textarea, select {
 
 input[type="text"],
 input[type="number"],
+input[type="password"],
 input:not([type]),
 textarea {
   width: 100%;
@@ -560,6 +572,53 @@ button:active {
   border-radius: 50%;
   background: var(--gold);
   flex-shrink: 0;
+}
+
+/* ---------------------------------------------------------
+   Auth / login screen
+   --------------------------------------------------------- */
+
+.auth-shell {
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 380px;
+  padding: 36px 32px;
+}
+
+.auth-brand {
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.auth-brand .eyebrow {
+  text-align: left;
+}
+
+.auth-hint {
+  text-align: center;
+  margin: 4px 0 26px;
+}
+
+.form-error {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border: 1px solid rgba(168, 64, 42, 0.2);
+  border-radius: var(--radius-sm);
+  padding: 9px 12px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.auth-card .btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .toast.toast-error .toast-dot {

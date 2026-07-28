@@ -4,3 +4,5 @@ server:
 prompt:
   service:
     url: ${PROMPT_SERVICE_URL:http://localhost:8000}
+jwt:
+  secret: ${JWT_SECRET}

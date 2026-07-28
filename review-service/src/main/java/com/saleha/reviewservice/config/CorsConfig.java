@@ -1,7 +1,9 @@
 package com.saleha.reviewservice.config;
 
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
@@ -10,28 +12,24 @@ import org.springframework.web.filter.CorsFilter;
 public class CorsConfig {
 
     @Bean
-    public CorsFilter corsFilter() {
+    public FilterRegistrationBean<CorsFilter> corsFilter() {
 
         CorsConfiguration config = new CorsConfiguration();
 
-        // Local development
         config.addAllowedOrigin("http://localhost");
         config.addAllowedOrigin("http://localhost:5173");
-
-        // Allow any ngrok subdomain
         config.addAllowedOriginPattern("https://*.ngrok-free.dev");
 
         config.addAllowedHeader("*");
         config.addAllowedMethod("*");
-
-        // Only needed if you use cookies or authentication
         config.setAllowCredentials(true);
 
-        UrlBasedCorsConfigurationSource source =
-                new UrlBasedCorsConfigurationSource();
-
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
 
-        return new CorsFilter(source);
+        FilterRegistrationBean<CorsFilter> bean = new FilterRegistrationBean<>(new CorsFilter(source));
+        bean.setOrder(Ordered.HIGHEST_PRECEDENCE);
+
+        return bean;
     }
 }
