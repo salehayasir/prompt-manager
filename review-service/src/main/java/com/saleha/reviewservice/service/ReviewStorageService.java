@@ -1,14 +1,14 @@
 package com.saleha.reviewservice.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.saleha.reviewservice.model.Review;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -48,7 +48,7 @@ public class ReviewStorageService {
             return new ArrayList<>();
         }
 
-        File[] files = folder.listFiles();
+        File[] files = folder.listFiles((dir, name) -> name.endsWith(".json"));
 
         if (files == null) {
             return new ArrayList<>();
@@ -58,12 +58,12 @@ public class ReviewStorageService {
 
         for (File file : files) {
 
-            Review review = objectMapper.readValue(
-                    file,
-                    Review.class
-            );
+            Review review = readReviewLeniently(file);
 
-            reviews.add(review);
+            // Skip files that can't be read/migrated instead of failing the whole request
+            if (review != null) {
+                reviews.add(review);
+            }
         }
 
         return reviews;
@@ -82,10 +82,7 @@ public class ReviewStorageService {
             return null;
         }
 
-        return objectMapper.readValue(
-                file,
-                Review.class
-        );
+        return readReviewLeniently(file);
     }
 
 
@@ -105,5 +102,63 @@ public class ReviewStorageService {
         }
 
         return result;
+    }
+
+    /**
+     * Reads a review file, tolerating the old on-disk format where
+     * promptSnapshot was the full Prompt object instead of a String.
+     * If an old-format file is found, it's transparently migrated and
+     * rewritten so this only happens once per file. Files that can't
+     * be read or migrated are skipped (logged), not thrown.
+     */
+    private Review readReviewLeniently(File file) {
+
+        try {
+
+            return objectMapper.readValue(file, Review.class);
+
+        } catch (IOException primaryFailure) {
+
+            try {
+
+                JsonNode root = objectMapper.readTree(file);
+                JsonNode snapshotNode = root.get("promptSnapshot");
+
+                if (root instanceof ObjectNode objectNode
+                        && snapshotNode != null
+                        && snapshotNode.isObject()) {
+
+                    JsonNode contentNode = snapshotNode.get("content");
+
+                    objectNode.put(
+                            "promptSnapshot",
+                            contentNode != null ? contentNode.asText() : null
+                    );
+
+                    Review migrated = objectMapper.treeToValue(objectNode, Review.class);
+
+                    // Persist the migration so this file reads cleanly next time
+                    objectMapper.writeValue(file, migrated);
+
+                    return migrated;
+                }
+
+            } catch (IOException migrationFailure) {
+
+                System.err.println(
+                        "Skipping unreadable review file " + file.getName()
+                                + ": " + migrationFailure.getMessage()
+                );
+
+                return null;
+            }
+
+            System.err.println(
+                    "Skipping unreadable review file " + file.getName()
+                            + ": " + primaryFailure.getMessage()
+            );
+
+            return null;
+        }
     }
 }
