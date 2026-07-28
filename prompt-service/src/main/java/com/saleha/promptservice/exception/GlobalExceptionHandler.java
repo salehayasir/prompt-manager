@@ -8,6 +8,9 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
@@ -72,6 +75,60 @@ public class GlobalExceptionHandler {
     ) {
 
         return buildResponse(HttpStatus.BAD_REQUEST, exception.getMessage());
+    }
+
+    // 400 - missing file or unsupported file type on attachment upload
+    @ExceptionHandler(InvalidAttachmentException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidAttachment(
+            InvalidAttachmentException exception
+    ) {
+
+        return buildResponse(HttpStatus.BAD_REQUEST, exception.getMessage());
+    }
+
+    // 400 - the "file" part was missing from the multipart request entirely
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ResponseEntity<Map<String, Object>> handleMissingPart(
+            MissingServletRequestPartException exception
+    ) {
+
+        return buildResponse(HttpStatus.BAD_REQUEST, "No file was provided");
+    }
+
+    // 400 - request body wasn't multipart at all (e.g. no file attached, no body sent)
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<Map<String, Object>> handleUnsupportedMediaType(
+            HttpMediaTypeNotSupportedException exception
+    ) {
+
+        return buildResponse(HttpStatus.BAD_REQUEST, "No file was provided");
+    }
+
+    // 400 - uploaded file exceeds the configured size limit
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleMaxUploadSize(
+            MaxUploadSizeExceededException exception
+    ) {
+
+        return buildResponse(HttpStatus.BAD_REQUEST, "Uploaded file is too large");
+    }
+
+    // 502 - Cloudinary was reached but returned an error for the operation
+    @ExceptionHandler(CloudinaryOperationException.class)
+    public ResponseEntity<Map<String, Object>> handleCloudinaryOperation(
+            CloudinaryOperationException exception
+    ) {
+
+        return buildResponse(HttpStatus.BAD_GATEWAY, exception.getMessage());
+    }
+
+    // 503 - Cloudinary could not be reached at all
+    @ExceptionHandler(CloudinaryUnavailableException.class)
+    public ResponseEntity<Map<String, Object>> handleCloudinaryUnavailable(
+            CloudinaryUnavailableException exception
+    ) {
+
+        return buildResponse(HttpStatus.SERVICE_UNAVAILABLE, exception.getMessage());
     }
 
     // 401 - bad login credentials

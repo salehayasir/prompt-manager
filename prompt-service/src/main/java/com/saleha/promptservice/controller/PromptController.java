@@ -4,7 +4,10 @@ import com.saleha.promptservice.entity.Prompt;
 import com.saleha.promptservice.exception.ResourceNotFoundException;
 import com.saleha.promptservice.repository.PromptRepository;
 import com.saleha.promptservice.dto.CreatePromptRequest;
+import com.saleha.promptservice.service.AttachmentService;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
@@ -14,9 +17,11 @@ import java.util.UUID;
 public class PromptController {
 
     private final PromptRepository promptRepository;
+    private final AttachmentService attachmentService;
 
-    public PromptController(PromptRepository promptRepository) {
+    public PromptController(PromptRepository promptRepository, AttachmentService attachmentService) {
         this.promptRepository = promptRepository;
+        this.attachmentService = attachmentService;
     }
 
 
@@ -110,6 +115,23 @@ public void deletePrompt(@PathVariable UUID id) {
 public boolean promptExists(@PathVariable UUID id) {
 
     return promptRepository.existsById(id);
+}
+
+
+// POST /prompts/{id}/attachment
+@PostMapping(value = "/{id}/attachment", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+public Prompt uploadAttachment(
+        @PathVariable UUID id,
+        @RequestParam("file") MultipartFile file
+) {
+    return attachmentService.uploadAttachment(id, file);
+}
+
+
+// DELETE /prompts/{id}/attachment
+@DeleteMapping("/{id}/attachment")
+public Prompt deleteAttachment(@PathVariable UUID id) {
+    return attachmentService.deleteAttachment(id);
 }
 
 }
