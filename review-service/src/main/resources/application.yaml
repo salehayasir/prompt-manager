@@ -6,3 +6,6 @@ prompt:
     url: ${PROMPT_SERVICE_URL:http://localhost:8000}
 jwt:
   secret: ${JWT_SECRET}
+
+digest:
+  interval-ms: ${DIGEST_INTERVAL_MS:60000}

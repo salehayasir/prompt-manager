@@ -24,12 +24,15 @@ public class ReviewService {
 
     private final RestClient restClient;
     private final ReviewStorageService reviewStorageService;
+    private final NotificationService notificationService;
 
     public ReviewService(RestClient restClient,
-                         ReviewStorageService reviewStorageService) {
+                         ReviewStorageService reviewStorageService,
+                         NotificationService notificationService) {
 
         this.restClient = restClient;
         this.reviewStorageService = reviewStorageService;
+        this.notificationService = notificationService;
     }
 
     public Review createReview(CreateReviewRequest request) throws IOException {
@@ -47,6 +50,10 @@ public class ReviewService {
         review.setReviewedAt(LocalDateTime.now());
 
         reviewStorageService.saveReview(review);
+
+        // Fire-and-forget: runs on notificationExecutor, this method returns
+        // immediately without waiting for it to complete.
+        notificationService.sendReviewCreatedNotification(review);
 
         return review;
     }
