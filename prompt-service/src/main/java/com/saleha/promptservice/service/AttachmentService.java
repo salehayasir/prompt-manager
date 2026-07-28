@@ -8,6 +8,9 @@ import com.saleha.promptservice.exception.CloudinaryUnavailableException;
 import com.saleha.promptservice.exception.InvalidAttachmentException;
 import com.saleha.promptservice.exception.ResourceNotFoundException;
 import com.saleha.promptservice.repository.PromptRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.cache.annotation.CachePut;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -21,6 +24,8 @@ import java.util.UUID;
 
 @Service
 public class AttachmentService {
+
+    private static final Logger log = LoggerFactory.getLogger(AttachmentService.class);
 
     // Reference files this exercise expects: screenshots, sample docs, style guides.
     private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of(
@@ -39,6 +44,7 @@ public class AttachmentService {
         this.promptRepository = promptRepository;
     }
 
+    @CachePut(value = "prompts", key = "#promptId")
     public Prompt uploadAttachment(UUID promptId, MultipartFile file) {
 
         Prompt prompt = findPrompt(promptId);
@@ -58,9 +64,14 @@ public class AttachmentService {
         prompt.setAttachmentUrl((String) result.get("secure_url"));
         prompt.setAttachmentPublicId((String) result.get("public_id"));
 
-        return promptRepository.save(prompt);
+        Prompt saved = promptRepository.save(prompt);
+
+        log.info("CACHE UPDATED - prompt {} refreshed in cache after attachment upload", promptId);
+
+        return saved;
     }
 
+    @CachePut(value = "prompts", key = "#promptId")
     public Prompt deleteAttachment(UUID promptId) {
 
         Prompt prompt = findPrompt(promptId);
@@ -76,7 +87,11 @@ public class AttachmentService {
         prompt.setAttachmentUrl(null);
         prompt.setAttachmentPublicId(null);
 
-        return promptRepository.save(prompt);
+        Prompt saved = promptRepository.save(prompt);
+
+        log.info("CACHE UPDATED - prompt {} refreshed in cache after attachment delete", promptId);
+
+        return saved;
     }
 
     private Prompt findPrompt(UUID promptId) {
