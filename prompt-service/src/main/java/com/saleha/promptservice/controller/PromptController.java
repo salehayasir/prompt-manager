@@ -5,6 +5,13 @@ import com.saleha.promptservice.exception.ResourceNotFoundException;
 import com.saleha.promptservice.repository.PromptRepository;
 import com.saleha.promptservice.dto.CreatePromptRequest;
 import com.saleha.promptservice.service.AttachmentService;
+import com.saleha.promptservice.service.PromptService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -16,12 +23,23 @@ import java.util.UUID;
 @RequestMapping("/prompts")
 public class PromptController {
 
+    private static final Logger log = LoggerFactory.getLogger(PromptController.class);
+
     private final PromptRepository promptRepository;
     private final AttachmentService attachmentService;
+    private final PromptService promptService;
+    private final CacheManager cacheManager;
 
-    public PromptController(PromptRepository promptRepository, AttachmentService attachmentService) {
+    public PromptController(
+            PromptRepository promptRepository,
+            AttachmentService attachmentService,
+            PromptService promptService,
+            CacheManager cacheManager
+    ) {
         this.promptRepository = promptRepository;
         this.attachmentService = attachmentService;
+        this.promptService = promptService;
+        this.cacheManager = cacheManager;
     }
 
 
@@ -51,14 +69,19 @@ public class PromptController {
     @GetMapping("/{id}")
     public Prompt getPrompt(@PathVariable UUID id) {
 
-        return promptRepository.findById(id)
-                .orElseThrow(
-                    () -> new ResourceNotFoundException(
-                        "Prompt not found with id: " + id
-                    )
-                );
+        Cache cache = cacheManager.getCache("prompts");
+        boolean cacheHit = cache != null && cache.get(id) != null;
+
+        if (cacheHit) {
+            log.info("CACHE HIT - serving prompt {} from cache", id);
+        }
+
+        // getPromptById is @Cacheable - its body (and the "CACHE MISS" log)
+        // only runs when cacheHit is false above.
+        return promptService.getPromptById(id);
     }
 
+        @CachePut(value = "prompts", key = "#id")
         @PutMapping("/{id}")
     public Prompt updatePrompt(
             @PathVariable UUID id,
@@ -93,12 +116,14 @@ public class PromptController {
         existingPrompt.setModelTarget(updatedPrompt.getModelTarget());
     }
 
+    log.info("CACHE UPDATED - prompt {} refreshed in cache after update", id);
 
     return promptRepository.save(existingPrompt);
 }
 
 
     // DELETE /prompts/{id}
+    @CacheEvict(value = "prompts", key = "#id")
     @DeleteMapping("/{id}")
 public void deletePrompt(@PathVariable UUID id) {
 
@@ -109,6 +134,8 @@ public void deletePrompt(@PathVariable UUID id) {
     }
 
     promptRepository.deleteById(id);
+
+    log.info("CACHE EVICTED - prompt {} removed from cache after delete", id);
 }
 
 @GetMapping("/{id}/exists")
