@@ -2,6 +2,7 @@ package com.saleha.promptservice.exception;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -71,6 +72,22 @@ public class GlobalExceptionHandler {
     ) {
 
         return buildResponse(HttpStatus.BAD_REQUEST, exception.getMessage());
+    }
+
+    // 401 - bad login credentials
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidCredentials(
+            InvalidCredentialsException exception
+    ) {
+        return buildResponse(HttpStatus.UNAUTHORIZED, exception.getMessage());
+    }
+
+    // 401 - Spring Security auth failures (e.g. bad/missing token surfacing here instead of the entry point)
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<Map<String, Object>> handleAuthenticationException(
+            AuthenticationException exception
+    ) {
+        return buildResponse(HttpStatus.UNAUTHORIZED, exception.getMessage());
     }
 
     // 500 - anything unexpected

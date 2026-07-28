@@ -7,6 +7,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.security.core.AuthenticationException;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
@@ -89,6 +90,14 @@ public class GlobalExceptionHandler {
     ) {
 
         return buildResponse(HttpStatus.BAD_REQUEST, exception.getMessage());
+    }
+
+    // 401 - Spring Security auth failures
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<Map<String, Object>> handleAuthenticationException(
+            AuthenticationException exception
+    ) {
+        return buildResponse(HttpStatus.UNAUTHORIZED, exception.getMessage());
     }
 
     // 500 - anything unexpected

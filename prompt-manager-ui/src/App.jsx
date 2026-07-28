@@ -6,8 +6,16 @@ import ReviewForm from "./components/ReviewForm";
 import ReviewList from "./components/ReviewList";
 import ReviewSummary from "./components/ReviewSummary";
 import Toast from "./components/Toast";
+import { getToken } from "./api/authToken";
+import Login from "./components/Login";
 
 function App() {
+
+    const [isAuthenticated, setIsAuthenticated] = useState(!!getToken());
+
+    if (!isAuthenticated) {
+        return <Login onLogin={() => setIsAuthenticated(true)} />;
+    }
 
     const [promptRefresh, setPromptRefresh] = useState(false);
     const [reviewRefresh, setReviewRefresh] = useState(false);
