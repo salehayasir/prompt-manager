@@ -79,3 +79,15 @@ review-service/reviews/
 # nginx runtime files (folder is kept via nginx/logs/.gitkeep)
 nginx/logs/*.log
 nginx/logs/*.pid
+
+# nginx temp buffer dirs (kept via .gitkeep, contents are runtime scratch space)
+nginx/temp/client_body_temp/*
+nginx/temp/proxy_temp/*
+nginx/temp/fastcgi_temp/*
+nginx/temp/uwsgi_temp/*
+nginx/temp/scgi_temp/*
+!nginx/temp/client_body_temp/.gitkeep
+!nginx/temp/proxy_temp/.gitkeep
+!nginx/temp/fastcgi_temp/.gitkeep
+!nginx/temp/uwsgi_temp/.gitkeep
+!nginx/temp/scgi_temp/.gitkeep
