@@ -68,7 +68,7 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.BAD_REQUEST, message);
     }
 
-    // 400 - generic bad input
+    // 400 - generic bad input (also covers an invalid sortBy field name - see PromptController)
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalArgument(
             IllegalArgumentException exception

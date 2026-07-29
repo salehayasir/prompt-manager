@@ -1,10 +1,14 @@
 package com.saleha.reviewservice.controller;
 
 import com.saleha.reviewservice.dto.CreateReviewRequest;
+import com.saleha.reviewservice.dto.PageResponse;
 import com.saleha.reviewservice.model.Review;
 import com.saleha.reviewservice.service.ReviewService;
 import jakarta.validation.Valid;
 
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
@@ -39,14 +43,23 @@ public class ReviewController {
 
     // Get all reviews, optionally filtered by promptId, reviewerName, minScore, maxScore
     @GetMapping
-    public List<Review> getAllReviews(
+    public PageResponse<Review> getAllReviews(
             @RequestParam(required = false) UUID promptId,
             @RequestParam(required = false) String reviewerName,
             @RequestParam(required = false) Integer minScore,
-            @RequestParam(required = false) Integer maxScore
+            @RequestParam(required = false) Integer maxScore,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "reviewedAt") String sortBy,
+            @RequestParam(defaultValue = "asc") String direction
     ) throws IOException {
 
-        return reviewService.getAllReviews(promptId, reviewerName, minScore, maxScore);
+        Sort sort = Sort.by(Sort.Direction.fromString(direction), sortBy);
+        Pageable pageable = PageRequest.of(page, size, sort);
+
+        return PageResponse.from(
+                reviewService.getAllReviews(promptId, reviewerName, minScore, maxScore, pageable)
+        );
     }
 
 

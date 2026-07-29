@@ -6,6 +6,12 @@ import com.saleha.reviewservice.exception.PromptServiceUnavailableException;
 import com.saleha.reviewservice.exception.ReviewNotFoundException;
 import com.saleha.reviewservice.model.Prompt;
 import com.saleha.reviewservice.model.Review;
+import org.springframework.beans.BeanWrapperImpl;
+import org.springframework.beans.InvalidPropertyException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
@@ -15,6 +21,7 @@ import org.springframework.web.client.RestClientException;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -104,14 +111,15 @@ public class ReviewService {
         }
     }
 
-    public List<Review> getAllReviews(
+    public Page<Review> getAllReviews(
             UUID promptId,
             String reviewerName,
             Integer minScore,
-            Integer maxScore
+            Integer maxScore,
+            Pageable pageable
     ) throws IOException {
 
-        return reviewStorageService.getAllReviews().stream()
+        List<Review> filtered = reviewStorageService.getAllReviews().stream()
                 .filter(r -> promptId == null || promptId.equals(r.getPromptId()))
                 .filter(r -> reviewerName == null
                         || (r.getReviewerName() != null
@@ -119,6 +127,64 @@ public class ReviewService {
                 .filter(r -> minScore == null || r.getScore() >= minScore)
                 .filter(r -> maxScore == null || r.getScore() <= maxScore)
                 .collect(Collectors.toList());
+
+        Sort sort = pageable.getSort();
+
+        if (sort.isSorted()) {
+
+            Comparator<Review> comparator = null;
+
+            for (Sort.Order order : sort) {
+
+                Comparator<Review> fieldComparator = comparatorFor(order.getProperty());
+
+                if (order.getDirection() == Sort.Direction.DESC) {
+                    fieldComparator = fieldComparator.reversed();
+                }
+
+                comparator = (comparator == null)
+                        ? fieldComparator
+                        : comparator.thenComparing(fieldComparator);
+            }
+
+            filtered.sort(comparator);
+        }
+
+        int start = (int) pageable.getOffset();
+        int end = Math.min(start + pageable.getPageSize(), filtered.size());
+
+        List<Review> pageContent = start >= filtered.size()
+                ? List.of()
+                : filtered.subList(start, end);
+
+        return new PageImpl<>(pageContent, pageable, filtered.size());
+    }
+
+    // Reviews aren't JPA entities (they're stored as flat JSON files), so there's
+    // no database-level sort to delegate to - this builds a Comparator over
+    // any Review field by name via reflection (through Spring's BeanWrapper),
+    // which is what lets sortBy accept "any valid field" without a switch statement.
+    @SuppressWarnings("unchecked")
+    private Comparator<Review> comparatorFor(String sortBy) {
+
+        return (a, b) -> {
+
+            Object valueA;
+            Object valueB;
+
+            try {
+                valueA = new BeanWrapperImpl(a).getPropertyValue(sortBy);
+                valueB = new BeanWrapperImpl(b).getPropertyValue(sortBy);
+            } catch (InvalidPropertyException e) {
+                throw new IllegalArgumentException("Invalid sort field: " + sortBy);
+            }
+
+            if (valueA == null && valueB == null) return 0;
+            if (valueA == null) return -1;
+            if (valueB == null) return 1;
+
+            return ((Comparable<Object>) valueA).compareTo(valueB);
+        };
     }
 
     public Review getReviewById(UUID id)
