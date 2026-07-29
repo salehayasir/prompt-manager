@@ -106,7 +106,7 @@ Allowed types: PNG/JPEG/GIF/WebP images, PDF, plain text, `.doc`/`.docx`. Return
 | `GET` | `/reviews` | Paginated review listing. Query params: `page`, `size`, `sortBy` (any `Review` field), `direction`, plus filters `promptId`, `reviewerName`, `minScore`, `maxScore` (all optional) |
 | `GET` | `/reviews/{id}` | Get a single review by id (404 if it doesn't exist) |
 | `GET` | `/reviews/prompt/{promptId}` | List all reviews for a specific prompt |
-| `GET` | `/reviews/prompt/{promptId}/summary` | Aggregated review summary for a prompt |
+| `GET` | `/reviews/{promptId}/summary` | Aggregated review summary for a prompt |
 | `GET` | `/reviews/digest/latest` | Latest scheduled digest: total review count, average score, and the id of the highest (average-scoring) prompt |
 
 Same pagination response shape as prompt-service (`content` + `totalElements`/`totalPages`/`currentPage`/`pageSize`).

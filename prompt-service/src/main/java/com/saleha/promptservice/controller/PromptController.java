@@ -5,6 +5,8 @@ import com.saleha.promptservice.exception.ResourceNotFoundException;
 import com.saleha.promptservice.repository.PromptRepository;
 import com.saleha.promptservice.dto.CreatePromptRequest;
 import com.saleha.promptservice.dto.PageResponse;
+import com.saleha.promptservice.dto.PromptResponse;
+import com.saleha.promptservice.dto.UpdatePromptRequest;
 import com.saleha.promptservice.service.AttachmentService;
 import com.saleha.promptservice.service.PromptService;
 import org.slf4j.Logger;
@@ -23,6 +25,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
 
+// NOTE: every method here returns/accepts a DTO (CreatePromptRequest,
+// UpdatePromptRequest, PromptResponse), never the Prompt JPA entity directly.
+// The entity only lives in the repository/service/cache layers.
 @RestController
 @RequestMapping("/prompts")
 public class PromptController {
@@ -48,8 +53,8 @@ public class PromptController {
 
 
     // POST /prompts
-   @PostMapping
-    public Prompt createPrompt(@RequestBody CreatePromptRequest request) {
+    @PostMapping
+    public PromptResponse createPrompt(@RequestBody CreatePromptRequest request) {
 
         Prompt prompt = new Prompt();
 
@@ -59,13 +64,15 @@ public class PromptController {
         prompt.setTags(request.getTags());
         prompt.setModelTarget(request.getModelTarget());
 
-        return promptRepository.save(prompt);
+        Prompt saved = promptRepository.save(prompt);
+
+        return PromptResponse.from(saved);
     }
 
 
     // GET /prompts
     @GetMapping
-    public PageResponse<Prompt> getAllPrompts(
+    public PageResponse<PromptResponse> getAllPrompts(
             @RequestParam(required = false) String tag,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
@@ -82,7 +89,9 @@ public class PromptController {
                 ? promptRepository.findByTagsContainingIgnoreCase(tag, pageable)
                 : promptRepository.findAll(pageable);
 
-        return PageResponse.from(result);
+        Page<PromptResponse> mapped = result.map(PromptResponse::from);
+
+        return PageResponse.from(mapped);
     }
 
     // Spring Data would normally reject an unknown sortBy at query time via
@@ -99,8 +108,9 @@ public class PromptController {
     }
 
 
+    // GET /prompts/{id}
     @GetMapping("/{id}")
-    public Prompt getPrompt(@PathVariable UUID id) {
+    public PromptResponse getPrompt(@PathVariable UUID id) {
 
         Cache cache = cacheManager.getCache("prompts");
         boolean cacheHit = cache != null && cache.get(id) != null;
@@ -111,87 +121,93 @@ public class PromptController {
 
         // getPromptById is @Cacheable - its body (and the "CACHE MISS" log)
         // only runs when cacheHit is false above.
-        return promptService.getPromptById(id);
+        Prompt prompt = promptService.getPromptById(id);
+
+        return PromptResponse.from(prompt);
     }
 
-        @CachePut(value = "prompts", key = "#id")
-        @PutMapping("/{id}")
-    public Prompt updatePrompt(
+    // PUT /prompts/{id}
+    @CachePut(value = "prompts", key = "#id")
+    @PutMapping("/{id}")
+    public PromptResponse updatePrompt(
             @PathVariable UUID id,
-            @RequestBody Prompt updatedPrompt
+            @RequestBody UpdatePromptRequest request
     ) {
 
-    Prompt existingPrompt = promptRepository.findById(id)
-            .orElseThrow(
-                () -> new ResourceNotFoundException(
-                    "Prompt not found with id: " + id
-                )
-            );
+        Prompt existingPrompt = promptRepository.findById(id)
+                .orElseThrow(
+                        () -> new ResourceNotFoundException(
+                                "Prompt not found with id: " + id
+                        )
+                );
 
+        if (request.getName() != null) {
+            existingPrompt.setName(request.getName());
+        }
 
-    if (updatedPrompt.getName() != null) {
-        existingPrompt.setName(updatedPrompt.getName());
+        if (request.getDescription() != null) {
+            existingPrompt.setDescription(request.getDescription());
+        }
+
+        if (request.getContent() != null) {
+            existingPrompt.setContent(request.getContent());
+        }
+
+        if (request.getTags() != null) {
+            existingPrompt.setTags(request.getTags());
+        }
+
+        if (request.getModelTarget() != null) {
+            existingPrompt.setModelTarget(request.getModelTarget());
+        }
+
+        Prompt saved = promptRepository.save(existingPrompt);
+
+        log.info("CACHE UPDATED - prompt {} refreshed in cache after update", id);
+
+        return PromptResponse.from(saved);
     }
-
-    if (updatedPrompt.getDescription() != null) {
-        existingPrompt.setDescription(updatedPrompt.getDescription());
-    }
-
-    if (updatedPrompt.getContent() != null) {
-        existingPrompt.setContent(updatedPrompt.getContent());
-    }
-
-    if (updatedPrompt.getTags() != null) {
-        existingPrompt.setTags(updatedPrompt.getTags());
-    }
-
-    if (updatedPrompt.getModelTarget() != null) {
-        existingPrompt.setModelTarget(updatedPrompt.getModelTarget());
-    }
-
-    log.info("CACHE UPDATED - prompt {} refreshed in cache after update", id);
-
-    return promptRepository.save(existingPrompt);
-}
 
 
     // DELETE /prompts/{id}
     @CacheEvict(value = "prompts", key = "#id")
     @DeleteMapping("/{id}")
-public void deletePrompt(@PathVariable UUID id) {
+    public void deletePrompt(@PathVariable UUID id) {
 
-    if (!promptRepository.existsById(id)) {
-        throw new ResourceNotFoundException(
-        "Prompt not found with id: " + id
-);
+        if (!promptRepository.existsById(id)) {
+            throw new ResourceNotFoundException(
+                    "Prompt not found with id: " + id
+            );
+        }
+
+        promptRepository.deleteById(id);
+
+        log.info("CACHE EVICTED - prompt {} removed from cache after delete", id);
     }
 
-    promptRepository.deleteById(id);
+    @GetMapping("/{id}/exists")
+    public boolean promptExists(@PathVariable UUID id) {
 
-    log.info("CACHE EVICTED - prompt {} removed from cache after delete", id);
-}
-
-@GetMapping("/{id}/exists")
-public boolean promptExists(@PathVariable UUID id) {
-
-    return promptRepository.existsById(id);
-}
+        return promptRepository.existsById(id);
+    }
 
 
-// POST /prompts/{id}/attachment
-@PostMapping(value = "/{id}/attachment", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-public Prompt uploadAttachment(
-        @PathVariable UUID id,
-        @RequestParam("file") MultipartFile file
-) {
-    return attachmentService.uploadAttachment(id, file);
-}
+    // POST /prompts/{id}/attachment
+    @PostMapping(value = "/{id}/attachment", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public PromptResponse uploadAttachment(
+            @PathVariable UUID id,
+            @RequestParam("file") MultipartFile file
+    ) {
+        Prompt prompt = attachmentService.uploadAttachment(id, file);
+        return PromptResponse.from(prompt);
+    }
 
 
-// DELETE /prompts/{id}/attachment
-@DeleteMapping("/{id}/attachment")
-public Prompt deleteAttachment(@PathVariable UUID id) {
-    return attachmentService.deleteAttachment(id);
-}
+    // DELETE /prompts/{id}/attachment
+    @DeleteMapping("/{id}/attachment")
+    public PromptResponse deleteAttachment(@PathVariable UUID id) {
+        Prompt prompt = attachmentService.deleteAttachment(id);
+        return PromptResponse.from(prompt);
+    }
 
 }

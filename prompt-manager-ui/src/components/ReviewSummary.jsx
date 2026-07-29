@@ -12,7 +12,7 @@ function ReviewSummary({ selectedPrompt }) {
             return;
         }
 
-        reviewApi.get(`/prompt/${selectedPrompt.id}/summary`)
+        reviewApi.get(`/${selectedPrompt.id}/summary`)
             .then((response) => {
                 setSummary(response.data);
             })

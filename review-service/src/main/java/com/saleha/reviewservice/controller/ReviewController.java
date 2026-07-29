@@ -86,8 +86,11 @@ public class ReviewController {
 
 
 
-    // Get summary for a prompt
-    @GetMapping("/prompt/{promptId}/summary")
+    // Get summary for a prompt - matches the documented
+    // "GET /reviews/{prompt_id}/summary" path. This does not collide with
+    // GET /reviews/{id} above since Spring matches on segment count/literal
+    // "summary" suffix, not just the path variable name.
+    @GetMapping("/{promptId}/summary")
     public ReviewService.ReviewSummary getSummary(
             @PathVariable UUID promptId
     ) throws IOException {
