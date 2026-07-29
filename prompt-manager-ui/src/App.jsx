@@ -6,19 +6,6 @@ import ReviewForm from "./components/ReviewForm";
 import ReviewList from "./components/ReviewList";
 import ReviewSummary from "./components/ReviewSummary";
 import Toast from "./components/Toast";
-<<<<<<< Updated upstream
-import { getToken } from "./api/authToken";
-import Login from "./components/Login";
-
-function App() {
-
-    const [isAuthenticated, setIsAuthenticated] = useState(!!getToken());
-
-    if (!isAuthenticated) {
-        return <Login onLogin={() => setIsAuthenticated(true)} />;
-    }
-
-=======
 import Login from "./components/Login";
 import { clearToken, getToken, onLogout } from "./api/authToken";
 
@@ -30,7 +17,6 @@ function App() {
     // depending on auth state — a Rules-of-Hooks violation that crashed
     // the whole tree with a blank screen the moment login succeeded.)
     const [isAuthenticated, setIsAuthenticated] = useState(!!getToken());
->>>>>>> Stashed changes
     const [promptRefresh, setPromptRefresh] = useState(false);
     const [reviewRefresh, setReviewRefresh] = useState(false);
     const [selectedPrompt, setSelectedPrompt] = useState(null);
