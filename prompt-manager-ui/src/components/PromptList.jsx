@@ -9,7 +9,7 @@ function PromptList({ refresh, selectedPrompt, onSelectPrompt }) {
 
         promptApi.get("")
             .then((response) => {
-                setPrompts(response.data);
+                setPrompts(response.data.content);
             })
             .catch(console.error);
 

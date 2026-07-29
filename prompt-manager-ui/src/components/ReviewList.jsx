@@ -9,7 +9,7 @@ function ReviewList({ refresh }) {
 
         reviewApi.get("")
             .then((response) => {
-                setReviews(response.data);
+                setReviews(response.data.content);
             })
             .catch(console.error);
 
