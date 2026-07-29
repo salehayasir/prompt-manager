@@ -75,3 +75,7 @@ target/
 *.log
 
 review-service/reviews/
+
+# nginx runtime files (folder is kept via nginx/logs/.gitkeep)
+nginx/logs/*.log
+nginx/logs/*.pid

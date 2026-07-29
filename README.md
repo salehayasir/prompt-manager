@@ -194,10 +194,12 @@ npm install
 npm run build                # outputs to prompt-manager-ui/dist
 ```
 
-### 4. Point Nginx at the build and start it
-Update the `root` path in `nginx/nginx.conf` to point at your local `prompt-manager-ui/dist` folder, then:
+### 4. Start Nginx
+`nginx.conf` uses a relative `root` (`prompt-manager-ui/dist`), resolved against nginx's prefix
+directory — so start it from the repo root and pass that as the prefix:
 ```bash
-nginx -c /path/to/nginx/nginx.conf
+# from the prompt-manager/ repo root
+nginx -p "$(pwd)" -c nginx/nginx.conf
 ```
 
 Visit `http://localhost`.
