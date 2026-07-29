@@ -4,6 +4,7 @@ import com.saleha.promptservice.entity.Prompt;
 import com.saleha.promptservice.exception.ResourceNotFoundException;
 import com.saleha.promptservice.repository.PromptRepository;
 import com.saleha.promptservice.dto.CreatePromptRequest;
+import com.saleha.promptservice.dto.PageResponse;
 import com.saleha.promptservice.service.AttachmentService;
 import com.saleha.promptservice.service.PromptService;
 import org.slf4j.Logger;
@@ -12,11 +13,14 @@ import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -61,8 +65,37 @@ public class PromptController {
 
     // GET /prompts
     @GetMapping
-    public List<Prompt> getAllPrompts() {
-        return promptRepository.findAll();
+    public PageResponse<Prompt> getAllPrompts(
+            @RequestParam(required = false) String tag,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "asc") String direction
+    ) {
+
+        validateSortField(sortBy);
+
+        Sort sort = Sort.by(Sort.Direction.fromString(direction), sortBy);
+        Pageable pageable = PageRequest.of(page, size, sort);
+
+        Page<Prompt> result = (tag != null && !tag.isBlank())
+                ? promptRepository.findByTagsContainingIgnoreCase(tag, pageable)
+                : promptRepository.findAll(pageable);
+
+        return PageResponse.from(result);
+    }
+
+    // Spring Data would normally reject an unknown sortBy at query time via
+    // its own exception, but that class's package moved across Spring Data
+    // versions - checking against Prompt's declared fields directly avoids
+    // depending on the exact exception type/location.
+    private void validateSortField(String sortBy) {
+
+        try {
+            Prompt.class.getDeclaredField(sortBy);
+        } catch (NoSuchFieldException e) {
+            throw new IllegalArgumentException("Invalid sort field: " + sortBy);
+        }
     }
 
 
