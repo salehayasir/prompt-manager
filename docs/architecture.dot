@@ -1,0 +1,73 @@
+digraph Architecture {
+  rankdir=TB;
+  bgcolor="white";
+  node [fontname="Helvetica,sans-Serif", fontsize=12, shape=box, style="rounded,filled", color=black, penwidth=0];
+  edge [fontname="Helvetica,sans-Serif", fontsize=10, color="#5b6b9a", fontcolor="#3a4468"];
+
+  subgraph cluster_client {
+    label="Client";
+    style=filled; color="#cadcfc"; fillcolor="#f5f8ff"; fontcolor="#1e2761"; fontsize=13;
+    Browser [label="Browser (React SPA)", fillcolor="#1e2761", fontcolor=white];
+  }
+
+  subgraph cluster_tunnel {
+    label="Public Access";
+    style=filled; color="#cadcfc"; fillcolor="#f5f8ff"; fontcolor="#1e2761"; fontsize=13;
+    Ngrok [label="ngrok tunnel", fillcolor="#3d5aa0", fontcolor=white];
+  }
+
+  subgraph cluster_gateway {
+    label="Gateway (localhost:80)";
+    style=filled; color="#cadcfc"; fillcolor="#f5f8ff"; fontcolor="#1e2761"; fontsize=13;
+    Nginx [label="Nginx", fillcolor="#1e2761", fontcolor=white];
+  }
+
+  subgraph cluster_services {
+    label="Microservices";
+    style=filled; color="#cadcfc"; fillcolor="#f5f8ff"; fontcolor="#1e2761"; fontsize=13;
+
+    PromptService [shape=plain, label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" BGCOLOR="#2f3c7e">
+        <TR><TD ALIGN="CENTER"><FONT COLOR="white" POINT-SIZE="12"><B>prompt-service :8000</B></FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><FONT COLOR="#c9d3f7" POINT-SIZE="10">JWT auth filter + /auth/login</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><FONT COLOR="#c9d3f7" POINT-SIZE="10">In-memory cache (single-prompt lookups)</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><FONT COLOR="#c9d3f7" POINT-SIZE="10">Cloudinary attachment upload / delete</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><FONT COLOR="#c9d3f7" POINT-SIZE="10">Paginated / sorted / filtered listing</FONT></TD></TR>
+      </TABLE>
+    >];
+
+    ReviewService [shape=plain, label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" BGCOLOR="#2f3c7e">
+        <TR><TD ALIGN="CENTER"><FONT COLOR="white" POINT-SIZE="12"><B>review-service :8001</B></FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><FONT COLOR="#c9d3f7" POINT-SIZE="10">JWT validation (shared secret)</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><FONT COLOR="#c9d3f7" POINT-SIZE="10">Scheduled digest job + /reviews/digest/latest</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><FONT COLOR="#c9d3f7" POINT-SIZE="10">Async notification on review creation</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><FONT COLOR="#c9d3f7" POINT-SIZE="10">Paginated / sorted / filtered listing</FONT></TD></TR>
+      </TABLE>
+    >];
+  }
+
+  subgraph cluster_external {
+    label="External Service";
+    style=filled; color="#cadcfc"; fillcolor="#f5f8ff"; fontcolor="#1e2761"; fontsize=13;
+    Cloudinary [label="Cloudinary\n(attachment storage)", fillcolor="#e07a5f", fontcolor=white];
+  }
+
+  subgraph cluster_data {
+    label="Data";
+    style=filled; color="#cadcfc"; fillcolor="#f5f8ff"; fontcolor="#1e2761"; fontsize=13;
+    Postgres [label="PostgreSQL", shape=cylinder, fillcolor="#028090", fontcolor=white];
+    JsonStore [label="reviews/*.json", shape=cylinder, fillcolor="#028090", fontcolor=white];
+    NotifLog [label="notifications.log", shape=cylinder, fillcolor="#028090", fontcolor=white];
+  }
+
+  Browser -> Ngrok;
+  Ngrok -> Nginx;
+  Nginx -> PromptService [label="/api/prompts/*\n/api/auth/*"];
+  Nginx -> ReviewService [label="/api/reviews/*"];
+  ReviewService -> PromptService [label="validate prompt\n(Bearer JWT)", style=dashed];
+  PromptService -> Postgres;
+  PromptService -> Cloudinary [label="upload / delete\nattachment"];
+  ReviewService -> JsonStore;
+  ReviewService -> NotifLog [label="async, after\nresponse returns", style=dashed];
+}
