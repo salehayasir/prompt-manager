@@ -1,7 +1,6 @@
 package com.saleha.promptservice.controller;
 
 import com.saleha.promptservice.entity.Prompt;
-import com.saleha.promptservice.exception.ResourceNotFoundException;
 import com.saleha.promptservice.repository.PromptRepository;
 import com.saleha.promptservice.dto.CreatePromptRequest;
 import com.saleha.promptservice.dto.PageResponse;
@@ -13,8 +12,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.CachePut;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -28,6 +25,10 @@ import java.util.UUID;
 // NOTE: every method here returns/accepts a DTO (CreatePromptRequest,
 // UpdatePromptRequest, PromptResponse), never the Prompt JPA entity directly.
 // The entity only lives in the repository/service/cache layers.
+// Caching (@Cacheable/@CachePut/@CacheEvict) lives entirely in PromptService
+// now - having @CachePut here return PromptResponse while PromptService's
+// @Cacheable returned Prompt caused a type mismatch (ClassCastException) the
+// first time a prompt was re-fetched after being updated.
 @RestController
 @RequestMapping("/prompts")
 public class PromptController {
@@ -56,15 +57,7 @@ public class PromptController {
     @PostMapping
     public PromptResponse createPrompt(@RequestBody CreatePromptRequest request) {
 
-        Prompt prompt = new Prompt();
-
-        prompt.setName(request.getName());
-        prompt.setDescription(request.getDescription());
-        prompt.setContent(request.getContent());
-        prompt.setTags(request.getTags());
-        prompt.setModelTarget(request.getModelTarget());
-
-        Prompt saved = promptRepository.save(prompt);
+        Prompt saved = promptService.createPrompt(request);
 
         return PromptResponse.from(saved);
     }
@@ -127,62 +120,23 @@ public class PromptController {
     }
 
     // PUT /prompts/{id}
-    @CachePut(value = "prompts", key = "#id")
     @PutMapping("/{id}")
     public PromptResponse updatePrompt(
             @PathVariable UUID id,
             @RequestBody UpdatePromptRequest request
     ) {
 
-        Prompt existingPrompt = promptRepository.findById(id)
-                .orElseThrow(
-                        () -> new ResourceNotFoundException(
-                                "Prompt not found with id: " + id
-                        )
-                );
-
-        if (request.getName() != null) {
-            existingPrompt.setName(request.getName());
-        }
-
-        if (request.getDescription() != null) {
-            existingPrompt.setDescription(request.getDescription());
-        }
-
-        if (request.getContent() != null) {
-            existingPrompt.setContent(request.getContent());
-        }
-
-        if (request.getTags() != null) {
-            existingPrompt.setTags(request.getTags());
-        }
-
-        if (request.getModelTarget() != null) {
-            existingPrompt.setModelTarget(request.getModelTarget());
-        }
-
-        Prompt saved = promptRepository.save(existingPrompt);
-
-        log.info("CACHE UPDATED - prompt {} refreshed in cache after update", id);
+        Prompt saved = promptService.updatePrompt(id, request);
 
         return PromptResponse.from(saved);
     }
 
 
     // DELETE /prompts/{id}
-    @CacheEvict(value = "prompts", key = "#id")
     @DeleteMapping("/{id}")
     public void deletePrompt(@PathVariable UUID id) {
 
-        if (!promptRepository.existsById(id)) {
-            throw new ResourceNotFoundException(
-                    "Prompt not found with id: " + id
-            );
-        }
-
-        promptRepository.deleteById(id);
-
-        log.info("CACHE EVICTED - prompt {} removed from cache after delete", id);
+        promptService.deletePrompt(id);
     }
 
     @GetMapping("/{id}/exists")
