@@ -1,7 +1,9 @@
 import logging
+from datetime import datetime, timezone
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.core.config import get_settings
@@ -35,6 +37,31 @@ async def http_exception_handler(request, exc: HTTPException):
     return JSONResponse(
         status_code=exc.status_code,
         content={"status": exc.status_code, "message": str(exc.detail)},
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc: RequestValidationError):
+    """
+    Query/body validation failures (e.g. /analytics/trends?interval=foo, or
+    ?days=9999 exceeding the le=365 bound) raise RequestValidationError, NOT
+    HTTPException - so without this handler they'd fall through to FastAPI's
+    default {"detail": [...]} array shape instead of matching the
+    {timestamp, status, error, message} convention every other error in
+    this app (and prompt-service/review-service) follows.
+    """
+    first_error = exc.errors()[0] if exc.errors() else {}
+    field = ".".join(str(loc) for loc in first_error.get("loc", []) if loc != "query")
+    message = first_error.get("msg", "Invalid request parameters")
+
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content={
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "status": status.HTTP_400_BAD_REQUEST,
+            "error": "Bad Request",
+            "message": f"{field}: {message}" if field else message,
+        },
     )
 
 
