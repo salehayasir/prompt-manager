@@ -7,6 +7,7 @@ import ReviewList from "./components/ReviewList";
 import ReviewSummary from "./components/ReviewSummary";
 import Toast from "./components/Toast";
 import Login from "./components/Login";
+import AnalyticsDashboard from "./components/AnalyticsDashboard";
 import { clearToken, getToken, onLogout } from "./api/authToken";
 
 function App() {
@@ -21,6 +22,7 @@ function App() {
     const [reviewRefresh, setReviewRefresh] = useState(false);
     const [selectedPrompt, setSelectedPrompt] = useState(null);
     const [toast, setToast] = useState(null);
+    const [activeTab, setActiveTab] = useState("workspace");
 
     useEffect(() => {
 
@@ -98,6 +100,29 @@ function App() {
 
             </header>
 
+            <div className="tab-nav">
+                <button
+                    type="button"
+                    className={activeTab === "workspace" ? "active" : ""}
+                    onClick={() => setActiveTab("workspace")}
+                >
+                    Workspace
+                </button>
+                <button
+                    type="button"
+                    className={activeTab === "analytics" ? "active" : ""}
+                    onClick={() => setActiveTab("analytics")}
+                >
+                    Analytics
+                </button>
+            </div>
+
+            {activeTab === "analytics" ? (
+
+                <AnalyticsDashboard />
+
+            ) : (
+
             <div className="workspace">
 
                 <aside>
@@ -136,6 +161,8 @@ function App() {
                 </div>
 
             </div>
+
+            )}
 
             <Toast message={toast?.message} type={toast?.type} />
 

@@ -13,6 +13,10 @@ export const reviewApi = axios.create({
     baseURL: "/api/reviews"
 });
 
+export const analyticsApi = axios.create({
+    baseURL: "/api/analytics"
+});
+
 function attachAuth(instance) {
 
     instance.interceptors.request.use((config) => {
@@ -36,3 +40,4 @@ function attachAuth(instance) {
 
 attachAuth(promptApi);
 attachAuth(reviewApi);
+attachAuth(analyticsApi);
