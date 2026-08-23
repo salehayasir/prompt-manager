@@ -55,12 +55,24 @@ digraph Architecture {
         <TR><TD ALIGN="LEFT"><FONT COLOR="#dcc9f7" POINT-SIZE="10">No database - everything derived over HTTP</FONT></TD></TR>
       </TABLE>
     >];
+
+    MlService [shape=plain, label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" BGCOLOR="#5a3d7e">
+        <TR><TD ALIGN="CENTER"><FONT COLOR="white" POINT-SIZE="12"><B>ml-service :8003 (Python)</B></FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><FONT COLOR="#dcc9f7" POINT-SIZE="10">JWT verification (PyJWT, shared secret)</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><FONT COLOR="#dcc9f7" POINT-SIZE="10">Logs in with its own service-account token</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><FONT COLOR="#dcc9f7" POINT-SIZE="10">Semantic search (embeddings + cosine similarity)</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><FONT COLOR="#dcc9f7" POINT-SIZE="10">Review quality check (sentiment vs. score)</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><FONT COLOR="#dcc9f7" POINT-SIZE="10">Incremental refresh (APScheduler) - only changed items re-embedded</FONT></TD></TR>
+      </TABLE>
+    >];
   }
 
   subgraph cluster_external {
-    label="External Service";
+    label="External Services";
     style=filled; color="#cadcfc"; fillcolor="#f5f8ff"; fontcolor="#1e2761"; fontsize=13;
     Cloudinary [label="Cloudinary\n(attachment storage)", fillcolor="#e07a5f", fontcolor=white];
+    HuggingFace [label="Hugging Face Inference API\n(free, hosted, pretrained models)", fillcolor="#e07a5f", fontcolor=white];
   }
 
   subgraph cluster_data {
@@ -76,9 +88,13 @@ digraph Architecture {
   Nginx -> PromptService [label="/api/prompts/*\n/api/auth/*"];
   Nginx -> ReviewService [label="/api/reviews/*"];
   Nginx -> AnalyticsService [label="/api/analytics/*"];
+  Nginx -> MlService [label="/api/ml/*"];
   ReviewService -> PromptService [label="validate prompt\n(Bearer JWT)", style=dashed];
   AnalyticsService -> PromptService [label="login once, then\nGET /prompts (paged)", style=dashed, color="#8a5aa8", fontcolor="#5a3d7e"];
   AnalyticsService -> ReviewService [label="GET /reviews (paged)", style=dashed, color="#8a5aa8", fontcolor="#5a3d7e"];
+  MlService -> PromptService [label="login once, then\nGET /prompts (paged)", style=dashed, color="#8a5aa8", fontcolor="#5a3d7e"];
+  MlService -> ReviewService [label="GET /reviews (paged)", style=dashed, color="#8a5aa8", fontcolor="#5a3d7e"];
+  MlService -> HuggingFace [label="embeddings + sentiment\n(HF_TOKEN)", color="#e07a5f", fontcolor="#a8442c"];
   PromptService -> Postgres;
   PromptService -> Cloudinary [label="upload / delete\nattachment"];
   ReviewService -> JsonStore;

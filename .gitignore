@@ -90,4 +90,5 @@ nginx/temp/scgi_temp/*
 !nginx/temp/proxy_temp/.gitkeep
 !nginx/temp/fastcgi_temp/.gitkeep
 !nginx/temp/uwsgi_temp/.gitkeep
-!nginx/temp/scgi_temp/.gitkeep
+!nginx/temp/scgi_temp/.gitkeep__pycache__/
+*.pyc

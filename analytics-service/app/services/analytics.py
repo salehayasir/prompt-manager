@@ -246,7 +246,7 @@ def compute_correlation(snapshot: Snapshot) -> dict:
 
     sample_size = len(merged)
 
-    if sample_size < 2:
+    if sample_size < 3:
         return _empty_correlation_result(sample_size)
 
     correlation = merged["content_length"].corr(merged["averageScore"])
