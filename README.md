@@ -9,18 +9,20 @@ A microservice-based web application for creating, organizing, and reviewing AI 
 
 ## Overview
 
-Prompt Manager lets users create and catalog reusable AI prompts (name, description, content, tags, target model) and attach reviews/ratings to them. It's built as three independent microservices behind an Nginx gateway — two in Java/Spring Boot and one in Python/FastAPI — with a React single-page frontend.
+Prompt Manager lets users create and catalog reusable AI prompts (name, description, content, tags, target model) and attach reviews/ratings to them. It's built as four independent microservices behind an Nginx gateway — two in Java/Spring Boot and two in Python/FastAPI — with a React single-page frontend.
 
 ## Architecture
 
 ![Architecture diagram](docs/architecture.png)
 
-- **React SPA** is served as static files by Nginx and talks only to relative `/api/...` paths — no CORS, no hardcoded hosts. Includes both the prompt/review workspace and an **Analytics** tab that visualizes analytics-service's endpoints (trends chart, tag-performance chart, leaderboard, correlation).
-- **Nginx** is the single entry point. It serves the built frontend and reverse-proxies API traffic to whichever backend service owns it, rewriting `/api/prompts/*` → `/prompts/*`, `/api/reviews/*` → `/reviews/*`, and `/api/analytics/*` → `/analytics/*` so each backend service can keep clean, prefix-free route mappings.
+- **React SPA** is served as static files by Nginx and talks only to relative `/api/...` paths — no CORS, no hardcoded hosts. Includes the prompt/review workspace and an **Analytics** tab that visualizes analytics-service's endpoints (trends chart, tag-performance chart, leaderboard, correlation).
+- **Nginx** is the single entry point. It serves the built frontend and reverse-proxies API traffic to whichever backend service owns it, rewriting `/api/prompts/*` → `/prompts/*`, `/api/reviews/*` → `/reviews/*`, `/api/analytics/*` → `/analytics/*`, and `/api/ml/*` → `/ml/*` so each backend service can keep clean, prefix-free route mappings.
 - **prompt-service** (Spring Boot, port `8000`) owns prompt CRUD and persists to **PostgreSQL** via Spring Data JPA. It also issues and validates JWTs (`POST /auth/login`), stores reference-file attachments on **Cloudinary**, keeps single-prompt lookups in an in-memory cache, and returns paginated/sorted/filtered listings.
 - **review-service** (Spring Boot, port `8001`) owns reviews, persists each one as a JSON file on disk, and calls back into `prompt-service` over REST (`RestClient`) to validate that a prompt exists before accepting a review for it. It validates the same JWT (shared secret) rather than issuing its own, runs a scheduled digest job that aggregates review stats in memory, and fires an async, non-blocking notification (written to `notifications.log`) whenever a review is created.
 - **analytics-service** (Python/FastAPI, port `8002`) is a read-only, polyglot addition with no database of its own. It logs into `prompt-service`'s shared `/auth/login` with a dedicated service account, pages through both other services' paginated list endpoints, and loads the results into pandas DataFrames to compute trends, tag performance, a reviewer/prompt leaderboard, and a content-length/score correlation check. It verifies incoming JWTs itself (via PyJWT, against the same `JWT_SECRET`) — proving the Week 2 auth scheme isn't tied to Spring Security. A background job (APScheduler) refreshes the underlying data on an interval rather than on every request, and if either Java service is unreachable at refresh time, it logs the failure and keeps serving the last successful snapshot instead of crashing or returning empty data.
+- **ml-service** (Python/FastAPI, port `8003`) is the first service to apply real pretrained ML models to prompt-manager's own data instead of just aggregating it. It logs into `prompt-service` the same way analytics-service does, then calls the **Hugging Face Inference API** for two features: semantic search (embed every prompt, rank by cosine similarity) and a review quality check (score each review's feedback text for sentiment and flag it when that sentiment disagrees — confidently — with its numeric score). A background job (APScheduler) does an *incremental* refresh: it only re-embeds a prompt or re-scores a review if its content actually changed since the last cycle, which is what keeps the service inside Hugging Face's free-tier rate limit. It also explicitly distinguishes a model "cold start" (retry after a short wait) from a genuine failure or a rate limit (back off until the next cycle) rather than treating every non-200 response the same way.
 - **Cloudinary** is the external file-storage provider for prompt attachments — prompt-service is the only caller; the API key/secret never reach the frontend.
+- **Hugging Face Inference API** is the external, free, hosted ML provider — ml-service is the only caller; the API token never reaches the frontend.
 - **ngrok** tunnels the public demo URL to the Nginx gateway running locally, so the whole stack is reachable without deploying to a cloud host.
 
 ## Tech Stack
@@ -30,10 +32,11 @@ Prompt Manager lets users create and catalog reusable AI prompts (name, descript
 | Frontend | React 19, Vite, Axios, Recharts (analytics charts) |
 | Gateway | Nginx (static hosting + reverse proxy) |
 | Backend (Java) | Java 17, Spring Boot 4.1 (Web MVC, Data JPA, Validation, Security, Cache, Scheduling, Async, Actuator) |
-| Backend (Python) | Python 3.12, FastAPI, Uvicorn, pandas, httpx, PyJWT, APScheduler, python-dotenv |
+| Backend (Python) | Python 3.12, FastAPI, Uvicorn, pandas (analytics-service), numpy (ml-service), httpx, PyJWT, APScheduler, python-dotenv |
+| ML | Hugging Face Inference API — sentence-transformers/all-MiniLM-L6-v2 (embeddings), distilbert-base-uncased-finetuned-sst-2-english (sentiment) |
 | Database | PostgreSQL (prompt-service) |
 | Storage | Local JSON files + `notifications.log` (review-service), Cloudinary (prompt attachments) |
-| Auth | JWT (`jjwt` on the Java side, `PyJWT` on the Python side), shared signing secret across all three services |
+| Auth | JWT (`jjwt` on the Java side, `PyJWT` on the Python side), shared signing secret across all four services |
 | Caching | Spring Cache abstraction, in-memory `ConcurrentMapCacheManager` |
 | API Docs | springdoc-openapi / Swagger UI (Java), FastAPI's built-in `/docs` (Python) |
 | Tunneling | ngrok |
@@ -46,6 +49,7 @@ prompt-manager/
 ├── prompt-service/        # Spring Boot microservice — prompts (Postgres)
 ├── review-service/        # Spring Boot microservice — reviews (JSON files)
 ├── analytics-service/     # FastAPI microservice — read-only analytics over the other two
+├── ml-service/            # FastAPI microservice — semantic search + review quality (Hugging Face)
 ├── nginx/
 │   └── nginx.conf         # Reverse proxy + static file serving
 └── docs/                  # Architecture diagram (architecture.dot/.svg/.png)
@@ -177,6 +181,29 @@ curl http://localhost:8002/analytics/overview -H "Authorization: Bearer <token>"
 
 See `analytics-service/INSIGHTS.md` for the actual data-science findings (and honest caveats) produced by running these endpoints against real test data.
 
+### ml-service (`/ml`, proxied at `/api/ml`)
+
+Applies two real pretrained models (via the Hugging Face Inference API) to the current data in prompt-service and review-service: semantic search over prompts, and a sentiment-vs-score review quality check. Requires the same `Authorization: Bearer <token>` as the other three services — ml-service verifies it independently, the same way analytics-service does.
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/health` | No auth required |
+| `GET` | `/ml/search?q=<text>&top_k=5` | Embeds `q`, ranks every stored prompt by cosine similarity, returns the top-k with their similarity scores |
+| `GET` | `/ml/prompts/{id}/similar?top_k=5` | Same ranking, but uses an existing prompt's own stored vector as the query — costs zero Hugging Face calls |
+| `GET` | `/ml/review-quality` | Every analyzed review with its sentiment label, confidence, expected sentiment (from its score), and whether/why it was flagged — flagged reviews sort first |
+
+```bash
+curl "http://localhost:8003/ml/search?q=summarizing+long+articles&top_k=5" -H "Authorization: Bearer <token>"
+```
+
+**Data collection:** ml-service has no database of its own. On startup (and on every scheduled refresh) it logs into prompt-service with its own dedicated service-account credentials, then pages through `GET /prompts` and `GET /reviews` the same way analytics-service does.
+
+**Incremental refresh:** a background job (APScheduler) re-checks every `ML_REFRESH_INTERVAL_SEC`, but only calls Hugging Face for a prompt/review whose content actually changed since the last successful check — everything else reuses its previously computed embedding or sentiment result. This is what keeps the service inside the free tier's hourly rate limit. If Hugging Face rate-limits ml-service partway through a refresh, it stops calling the API for the rest of that cycle, keeps whatever it already computed, logs what was skipped, and picks those items back up on the next scheduled run.
+
+**Cold starts vs. real failures:** the first call to a model that hasn't been used recently can take 30–60s while it loads. ml-service recognizes Hugging Face's "still loading" response specifically and retries after a short wait, rather than treating it as a failure — the same 404-vs-503 discipline Week 1 asked for. See `ml-service/README.md` for the full breakdown of cold-start/rate-limit/permanent-failure handling, plus the documented score-mapping and confidence-threshold rules behind the review quality check.
+
+**Known simplification:** like analytics-service, ml-service authenticates using the same single login mechanism built for a human user in Week 2, just with its own dedicated username/password (`ML_SERVICE_USERNAME`/`PASSWORD`) — flagged deliberately rather than presented as the ideal design.
+
 ## Running Locally
 
 ### Prerequisites
@@ -185,23 +212,25 @@ See `analytics-service/INSIGHTS.md` for the actual data-science findings (and ho
 - Python 3.12+ (analytics-service's pandas dependency does not yet have pre-built installers for the very latest Python releases — 3.12 is the safe choice)
 - PostgreSQL running locally, with a `promptdb` database
 - Nginx
+- A free Hugging Face account and access token (for ml-service) — [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens), no credit card required
 
 ### 1. Configure environment variables
-All three services read sensitive/environment-specific config from a `.env` file in their own directory. Copy the provided templates and fill in real values:
+All four services read sensitive/environment-specific config from a `.env` file in their own directory. Copy the provided templates and fill in real values:
 
 ```bash
 cp prompt-service/.env.example prompt-service/.env
 cp review-service/.env.example review-service/.env
 cp analytics-service/.env.example analytics-service/.env
+cp ml-service/.env.example ml-service/.env
 ```
 
 | Variable | Used by | Purpose |
 |---|---|---|
 | `SERVER_PORT` | prompt-service, review-service | Port the service listens on (`8000` / `8001`) |
 | `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | prompt-service | Local PostgreSQL connection |
-| `PROMPT_SERVICE_URL` | review-service, analytics-service | Base URL for cross-service calls into prompt-service |
-| `REVIEW_SERVICE_URL` | analytics-service | Base URL for calls into review-service |
-| `JWT_SECRET` | All three | Shared signing key for issuing (prompt-service) and validating (all three) tokens — **must be the same value in every `.env` file** |
+| `PROMPT_SERVICE_URL` | review-service, analytics-service, ml-service | Base URL for cross-service calls into prompt-service |
+| `REVIEW_SERVICE_URL` | analytics-service, ml-service | Base URL for calls into review-service |
+| `JWT_SECRET` | All four | Shared signing key for issuing (prompt-service) and validating (all four) tokens — **must be the same value in every `.env` file** |
 | `JWT_EXPIRATION_MS` | prompt-service | How long an issued token stays valid |
 | `AUTH_USERNAME` / `AUTH_PASSWORD` | prompt-service | Credentials for the single human login account |
 | `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` | prompt-service | Cloudinary account identifier and API credentials |
@@ -209,6 +238,12 @@ cp analytics-service/.env.example analytics-service/.env
 | `ANALYTICS_SERVICE_PORT` | analytics-service | Port analytics-service listens on (`8002`) |
 | `ANALYTICS_SERVICE_USERNAME` / `ANALYTICS_SERVICE_PASSWORD` | analytics-service | Dedicated credentials analytics-service logs in with (see the "known simplification" note above) |
 | `ANALYTICS_REFRESH_INTERVAL_SEC` | analytics-service | How often the background job recomputes the analytics snapshot |
+| `ML_SERVICE_PORT` | ml-service | Port ml-service listens on (`8003`) |
+| `ML_SERVICE_USERNAME` / `ML_SERVICE_PASSWORD` | ml-service | Dedicated credentials ml-service logs in with (same simplification as analytics-service) |
+| `HUGGINGFACE_API_TOKEN` | ml-service | Your free Hugging Face access token — never commit this |
+| `HF_EMBEDDING_MODEL` / `HF_SENTIMENT_MODEL` | ml-service | Model IDs used for semantic search and the sentiment check |
+| `ML_REFRESH_INTERVAL_SEC` | ml-service | How often the incremental refresh job runs |
+| `SENTIMENT_CONFIDENCE_THRESHOLD` | ml-service | Minimum model confidence before a sentiment/score disagreement is flagged |
 
 `.env` files are git-ignored — never commit real credentials. Only the `.env.example` templates (placeholder values only) are tracked.
 
@@ -221,7 +256,7 @@ cd ../review-service
 ./mvnw spring-boot:run       # runs on :8001
 ```
 
-### 3. Start analytics-service
+### 3. Start analytics-service and ml-service
 ```bash
 cd analytics-service
 python -m venv venv
@@ -229,7 +264,14 @@ source venv/bin/activate     # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn app.main:app --port 8002 --reload
 ```
-prompt-service and review-service must already be running — analytics-service logs in and fetches its first snapshot at startup. If they aren't up yet, it logs a warning and keeps retrying on the next scheduled refresh rather than crashing.
+```bash
+cd ../ml-service
+python -m venv venv
+source venv/bin/activate     # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn app.main:app --port 8003 --reload
+```
+prompt-service and review-service must already be running — both Python services log in and fetch their first snapshot at startup. If they aren't up yet, each logs a warning and keeps retrying on the next scheduled refresh rather than crashing. ml-service's very first refresh is the slowest one, since nothing is cached yet and every prompt/review needs a Hugging Face call — later refreshes are much faster since only changed items get re-sent.
 
 ### 4. Build the frontend
 ```bash
@@ -290,6 +332,12 @@ curl http://localhost:8001/reviews/digest/latest -H "Authorization: Bearer $TOKE
 # 7. Check analytics-service (polyglot, port 8002) sees the same data over HTTP,
 #    verifying the SAME token with its own PyJWT-based check
 curl http://localhost:8002/analytics/overview -H "Authorization: Bearer $TOKEN"
+
+# 8. Check ml-service (port 8003) has embedded the new prompt and can find it
+#    by meaning, not just by keyword - wait for at least one scheduled refresh
+#    (or the startup refresh) before trying this
+curl "http://localhost:8003/ml/search?q=greeting&top_k=5" -H "Authorization: Bearer $TOKEN"
+curl http://localhost:8003/ml/review-quality -H "Authorization: Bearer $TOKEN"
 ```
 
 What each step demonstrates:
@@ -300,6 +348,7 @@ What each step demonstrates:
 5. **Async notification** — `time` shows the HTTP response returning in well under the ~3s the notification task deliberately sleeps for; `notifications.log` gets a new line shortly after.
 6. **Scheduled digest** — the background job (running independently on its own interval) has already picked up the new review by the time you check.
 7. **Cross-language auth** — the exact same JWT issued by prompt-service (Java/`jjwt`) is accepted by analytics-service (Python/`PyJWT`), proving the auth scheme isn't tied to Spring Security.
+8. **Real ML on real data** — the prompt created in step 2 has been embedded by ml-service's background refresh, so a semantic query for a related concept (not the literal prompt text) can surface it; the review submitted in step 5 has been scored for sentiment and shows up in `/ml/review-quality`, flagged or not, depending on whether its feedback text actually agrees with its score.
 
 (If `jq` isn't available on your system, just copy the `token`/`id` values manually from each response instead of piping through it.)
 
@@ -315,6 +364,9 @@ What each step demonstrates:
 - **A polyglot JWT scheme, not a polyglot auth service.** Rather than adding a fourth, dedicated identity service, analytics-service simply verifies the same signed token itself using PyJWT against the shared `JWT_SECRET` — proving the design decision from Week 2 (a shared-secret, stateless token rather than a central session store) generalizes across languages instead of being incidentally coupled to Spring Security.
 - **Snapshot-and-schedule instead of fetch-per-request, applied to a heavier workload.** analytics-service's five endpoints all read from an in-memory pandas snapshot refreshed on an interval, the same "expensive work happens in the background" idea as review-service's digest job — just applied to a full paginated fetch-and-recompute across two services instead of a single in-process aggregation.
 - **Graceful degradation on a downstream outage.** If prompt-service or review-service is unreachable when analytics-service's scheduled refresh runs, the failure is logged and the *previous* successful snapshot keeps being served — surfaced via `lastRefreshError` on `/analytics/overview` — rather than the analytics endpoints crashing or silently returning empty/wrong data.
+- **Incremental refresh instead of recompute-everything, once a real quota is involved.** analytics-service's snapshot is cheap enough to fully recompute every cycle. ml-service can't do that — each item costs a real, rate-limited third-party API call — so its refresh diffs `content`/`updatedAt` (prompts) and `feedback`/`score` (reviews) against what was already embedded/scored, and only calls Hugging Face for what actually changed. This is the same "don't do more work than the data requires" instinct as the snapshot pattern above, pushed one step further because here the cost isn't just CPU time, it's a metered external resource.
+- **Three outcomes, not one, for a failed Hugging Face call.** A naive client treats every non-200 response as "the call failed, log and move on." That collapses three genuinely different situations that need different responses: a model *cold-starting* (HTTP 503 + a loading body) is worth waiting on and retrying; a *rate limit* (HTTP 429) means stop calling entirely for the rest of this cycle, not retry faster; anything else (a real 5xx, a 404 for a model that moved) is a permanent failure for that call and shouldn't be retried in a loop. `ml-service/app/services/hf_client.py` raises three distinct exception types so callers can react to each correctly instead of branching on status codes ad hoc.
+- **A documented, defensible rule instead of a hidden one, for "does this review look wrong."** Rather than flagging every sentiment/score mismatch, the review quality check only flags a mismatch when the model is confident about it (`SENTIMENT_CONFIDENCE_THRESHOLD`, default `0.75`) and treats a middling 3/5 score as having no expected sentiment at all, rather than forcing it into "positive" or "negative." Both choices are judgment calls, not facts, so they're written down and justified in `ml-service/README.md` rather than left implicit in the code.
 
 ## Git Branching Strategy
 
